@@ -2,7 +2,14 @@ package models
 
 import (
 	"time"
+
+	"gorm.io/gorm"
 )
+
+// DB represents the database connection
+type DB struct {
+	*gorm.DB
+}
 
 // Settings represents global application settings
 type Settings struct {
