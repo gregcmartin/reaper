@@ -21,6 +21,15 @@ const (
 	TestTypeRateLimits TestType = "RATE_LIMITS"
 	TestTypeJWT        TestType = "JWT"
 	TestTypeCrawl      TestType = "CRAWL"
+	TestTypeSQLInjection TestType = "SQL_INJECTION"
+	TestTypeXXE        TestType = "XXE"
+	TestTypeRCE        TestType = "RCE"
+	TestTypeSSRF       TestType = "SSRF"
+	TestTypeFileUpload TestType = "FILE_UPLOAD"
+	TestTypeInsecureDeserialize TestType = "INSECURE_DESERIALIZE"
+	TestTypeAPIVulnerability TestType = "API_VULNERABILITY"
+	TestTypeSecurityBypass TestType = "SECURITY_BYPASS"
+	TestTypeRaceCondition TestType = "RACE_CONDITION"
 )
 
 // TestSeverity represents the severity level of a test finding
@@ -146,59 +155,73 @@ func (wm *WorkflowManager) CreateWorkflow(workflow *TestWorkflow) error {
 
 // ExecuteWorkflow runs a test workflow
 func (wm *WorkflowManager) ExecuteWorkflow(workflowID uint) error {
-	workflow := &TestWorkflow{}
-	if err := wm.db.First(workflow, workflowID).Error; err != nil {
-		return err
-	}
-
-	// Get global settings
-	settings, err := wm.db.GetSettings()
+	workflow, err := wm.GetWorkflow(workflowID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get workflow: %v", err)
 	}
 
 	// Update status to running
-	workflow.Status.State = "RUNNING"
-	workflow.Status.StartTime = time.Now()
+	workflow.Status = TestStatus{
+		State:     "RUNNING",
+		StartTime: time.Now(),
+	}
 	if err := wm.db.Save(workflow).Error; err != nil {
-		return err
+		return fmt.Errorf("failed to update workflow status: %v", err)
+	}
+
+	// Get global settings
+	var settings models.Settings
+	if err := wm.db.First(&settings).Error; err != nil {
+		return fmt.Errorf("failed to get settings: %v", err)
 	}
 
 	// Execute test based on type
-	var execErr error
+	var testErr error
 	switch workflow.Type {
-	case TestTypeBOLA:
-		execErr = wm.executeBOLATest(workflow)
-	case TestTypeIDOR:
-		execErr = wm.executeIDORTest(workflow)
-	case TestTypeXSS:
-		execErr = wm.executeXSSTest(workflow)
-	case TestTypeSQLI:
-		execErr = wm.executeSQLITest(workflow)
-	case TestTypeRateLimits:
-		execErr = wm.executeRateLimitTest(workflow)
-	case TestTypeJWT:
-		execErr = wm.executeJWTTest(workflow)
 	case TestTypeCrawl:
-		if settings.HeadlessBrowser {
-			execErr = wm.executeCrawlTest(workflow, settings)
-		} else {
-			execErr = fmt.Errorf("headless browser mode is disabled in settings")
-		}
+		testErr = wm.executeCrawlTest(workflow, &settings)
+	case TestTypeBOLA, TestTypeIDOR:
+		testErr = wm.executeAccessControlTest(workflow, &settings)
+	case TestTypeSQLInjection, TestTypeXXE, TestTypeXSS, TestTypeRCE,
+		TestTypeSSRF, TestTypeFileUpload, TestTypeInsecureDeserialize,
+		TestTypeAPIVulnerability, TestTypeSecurityBypass, TestTypeRaceCondition:
+		testErr = wm.executeInjectionTest(workflow, &settings)
 	default:
-		execErr = fmt.Errorf("unsupported test type: %s", workflow.Type)
+		testErr = fmt.Errorf("unsupported test type: %s", workflow.Type)
 	}
 
-	// Update workflow status
-	workflow.Status.EndTime = time.Now()
-	if execErr != nil {
-		workflow.Status.State = "FAILED"
-		workflow.Status.Error = execErr.Error()
+	// Update status based on test result
+	endTime := time.Now()
+	if testErr != nil {
+		workflow.Status = TestStatus{
+			State:     "ERROR",
+			StartTime: workflow.Status.StartTime,
+			EndTime:   endTime,
+			Error:     testErr.Error(),
+		}
 	} else {
-		workflow.Status.State = "COMPLETED"
+		workflow.Status = TestStatus{
+			State:     "COMPLETED",
+			StartTime: workflow.Status.StartTime,
+			EndTime:   endTime,
+		}
 	}
 
-	return wm.db.Save(workflow).Error
+	// Calculate and update results
+	findings, _ := wm.GetFindings(workflowID)
+	workflow.Results = TestResults{
+		Findings:     findings,
+		TotalTests:   len(findings),
+		PassedTests:  0, // Update based on your criteria
+		FailedTests:  len(findings),
+		ElapsedTime:  endTime.Sub(workflow.Status.StartTime).Seconds(),
+	}
+
+	if err := wm.db.Save(workflow).Error; err != nil {
+		return fmt.Errorf("failed to update workflow: %v", err)
+	}
+
+	return testErr
 }
 
 // executeCrawlTest performs automated crawling using Playwright
@@ -241,6 +264,16 @@ func (wm *WorkflowManager) executeCrawlTest(workflow *TestWorkflow, settings *mo
 		return fmt.Errorf("crawl failed: %v", err)
 	}
 
+	return nil
+}
+
+func (wm *WorkflowManager) executeInjectionTest(workflow *TestWorkflow, settings *models.Settings) error {
+	// TO DO: implement injection test logic
+	return nil
+}
+
+func (wm *WorkflowManager) executeAccessControlTest(workflow *TestWorkflow, settings *models.Settings) error {
+	// TO DO: implement access control test logic
 	return nil
 }
 
