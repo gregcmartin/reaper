@@ -157,12 +157,14 @@ func (pm *PlaywrightManager) crawl(ctx context.Context, page playwright.Page, co
 	// Take screenshot if enabled
 	if config.ScreenshotEnabled {
 		screenshotPath := filepath.Join(config.ScreenshotPath, fmt.Sprintf("%d_%s.png", time.Now().Unix(), sanitizeFilename(currentURL)))
-		if err := page.Screenshot(playwright.PageScreenshotOptions{
+		screenshot, err := page.Screenshot(playwright.PageScreenshotOptions{
 			Path: playwright.String(screenshotPath),
 			FullPage: playwright.Bool(true),
-		}); err != nil {
+		})
+		if err != nil {
 			slog.Error("screenshot failed", "error", err)
 		}
+		_ = screenshot // Ignore the returned bytes since we're saving to file
 	}
 
 	// Inject custom JavaScript if enabled
@@ -256,7 +258,10 @@ func (pm *PlaywrightManager) handleAuthentication(page playwright.Page, config *
 	}
 
 	// Wait for navigation
-	if err := page.WaitForLoadState(playwright.LoadStateNetworkidle); err != nil {
+	opts := playwright.PageWaitForLoadStateOptions{
+		State: playwright.LoadStateNetworkidle,
+	}
+	if err := page.WaitForLoadState(opts); err != nil {
 		return fmt.Errorf("failed to wait for navigation: %v", err)
 	}
 
@@ -298,10 +303,20 @@ func (pm *PlaywrightManager) handleForms(page playwright.Page) error {
 		}
 
 		// Submit form
-		submitButton, err := form.Locator("button[type=submit]").First()
-		if err == nil {
-			submitButton.Click()
-			page.WaitForLoadState(playwright.LoadStateNetworkidle)
+		submitLocator := form.Locator("button[type=submit]")
+		submitButton, err := submitLocator.First()
+		if err != nil {
+			continue
+		}
+
+		if err := submitButton.Click(); err != nil {
+			continue
+		}
+		opts := playwright.PageWaitForLoadStateOptions{
+			State: playwright.LoadStateNetworkidle,
+		}
+		if err := page.WaitForLoadState(opts); err != nil {
+			continue
 		}
 	}
 

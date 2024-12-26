@@ -57,3 +57,11 @@ func (j JSON) Value() (driver.Value, error) {
 	}
 	return string(j), nil
 }
+
+// MarshalJSON implements json.Marshaler
+func (j JSON) MarshalJSON() ([]byte, error) {
+	if len(j) == 0 {
+		return []byte("null"), nil
+	}
+	return json.RawMessage(j).MarshalJSON()
+}
