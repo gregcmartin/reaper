@@ -31,6 +31,25 @@ docker compose up
 
 Again, once the container is up and running, navigate to [http://localhost:8000](http://localhost:8000) to activate the Reaper UI.
 
+## Running from Source
+
+If you prefer to run Reaper from source, you'll need to install some additional dependencies:
+
+1. Install Go 1.22.3 or later
+2. Install Playwright dependencies:
+   ```sh
+   # Install Playwright CLI
+   go install github.com/playwright-community/playwright-go/cmd/playwright@latest
+   
+   # Install browser and system dependencies
+   playwright install --with-deps chromium
+   ```
+3. Clone the repository and run:
+   ```sh
+   go mod download
+   go run ./cmd/reaper
+   ```
+
 # Usage
 
 ## Scan
