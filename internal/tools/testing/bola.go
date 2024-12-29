@@ -193,14 +193,6 @@ func readResponse(resp *http.Response) string {
 	return buf.String()
 }
 
-func flattenHeaders(headers http.Header) map[string]string {
-	flat := make(map[string]string)
-	for k, v := range headers {
-		flat[k] = strings.Join(v, ", ")
-	}
-	return flat
-}
-
 func isNumeric(s string) bool {
 	_, err := strconv.Atoi(s)
 	return err == nil

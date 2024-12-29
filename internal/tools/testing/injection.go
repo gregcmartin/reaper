@@ -9,41 +9,28 @@ import (
 	"time"
 
 	"github.com/ghostsecurity/reaper/internal/database/models"
-)
-
-// InjectionTestTypes represents different types of injection tests
-const (
-	TestTypeSQLInjection TestType = "SQLI"
-	TestTypeXXE          TestType = "XXE"
-	TestTypeXSS          TestType = "XSS"
-	TestTypeRCE          TestType = "RCE"
-	TestTypeSSRF         TestType = "SSRF"
-	TestTypeFileUpload   TestType = "FILE_UPLOAD"
-	TestTypeInsecureDeserialize TestType = "INSECURE_DESERIALIZE"
-	TestTypeAPIVulnerability TestType = "API_VULNERABILITY"
-	TestTypeSecurityBypass TestType = "SECURITY_BYPASS"
-	TestTypeRaceCondition TestType = "RACE_CONDITION"
+	"github.com/ghostsecurity/reaper/internal/types"
 )
 
 // InjectionPayload represents a test payload for injection testing
 type InjectionPayload struct {
-	Type        TestType     `json:"type"`
-	Value       string       `json:"value"`
-	Description string       `json:"description"`
-	Severity    TestSeverity `json:"severity"`
+	Type        types.TestType     `json:"type"`
+	Value       string             `json:"value"`
+	Description string             `json:"description"`
+	Severity    types.TestSeverity `json:"severity"`
 }
 
 // InjectionTestConfig holds configuration for injection testing
 type InjectionTestConfig struct {
-	Target      string            `json:"target"`
-	Method      string            `json:"method"`
-	Headers     map[string]string `json:"headers"`
-	Parameters  map[string]string `json:"parameters"`
-	Cookies     map[string]string `json:"cookies"`
-	Auth        *AuthConfig       `json:"auth,omitempty"`
-	TestTypes   []TestType        `json:"test_types"`
-	Concurrency int               `json:"concurrency"`
-	Delay       time.Duration     `json:"delay"`
+	Target      string             `json:"target"`
+	Method      string             `json:"method"`
+	Headers     map[string]string  `json:"headers"`
+	Parameters  map[string]string  `json:"parameters"`
+	Cookies     map[string]string  `json:"cookies"`
+	Auth        *types.AuthConfig  `json:"auth,omitempty"`
+	TestTypes   []types.TestType   `json:"test_types"`
+	Concurrency int                `json:"concurrency"`
+	Delay       time.Duration      `json:"delay"`
 }
 
 // executeInjectionTest performs various injection tests based on configuration
@@ -54,7 +41,7 @@ func (wm *WorkflowManager) executeInjectionTest(workflow *TestWorkflow, settings
 	}
 
 	payloads := generatePayloads(config.TestTypes)
-	results := make(chan TestFinding)
+	results := make(chan types.TestFinding)
 	var wg sync.WaitGroup
 
 	// Create worker pool for concurrent testing
@@ -89,7 +76,7 @@ func (wm *WorkflowManager) executeInjectionTest(workflow *TestWorkflow, settings
 }
 
 // testPayload tests a single injection payload against the target
-func (wm *WorkflowManager) testPayload(config InjectionTestConfig, payload InjectionPayload, results chan<- TestFinding) error {
+func (wm *WorkflowManager) testPayload(config InjectionTestConfig, payload InjectionPayload, results chan<- types.TestFinding) error {
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -129,20 +116,20 @@ func (wm *WorkflowManager) testPayload(config InjectionTestConfig, payload Injec
 }
 
 // analyzeResponse analyzes the response for potential vulnerabilities
-func analyzeResponse(payload InjectionPayload, resp *http.Response) *TestFinding {
+func analyzeResponse(payload InjectionPayload, resp *http.Response) *types.TestFinding {
 	// Common error patterns that might indicate vulnerabilities
-	errorPatterns := map[TestType][]string{
-		TestTypeSQLInjection: {
+	errorPatterns := map[types.TestType][]string{
+		types.TestTypeSQLInjection: {
 			"SQL syntax",
 			"mysql_fetch_array",
 			"ORA-",
 			"PostgreSQL",
 		},
-		TestTypeXSS: {
+		types.TestTypeXSS: {
 			"<script>alert(1)</script>",
 			"javascript:alert",
 		},
-		TestTypeRCE: {
+		types.TestTypeRCE: {
 			"root:",
 			"bin/bash",
 		},
@@ -159,12 +146,12 @@ func analyzeResponse(payload InjectionPayload, resp *http.Response) *TestFinding
 	if exists {
 		for _, pattern := range patterns {
 			if strings.Contains(bodyStr, pattern) {
-				return &TestFinding{
+				return &types.TestFinding{
 					Type:        payload.Type,
 					Severity:    payload.Severity,
 					Title:       fmt.Sprintf("Potential %s vulnerability detected", payload.Type),
 					Description: fmt.Sprintf("Found indication of %s vulnerability using payload: %s", payload.Type, payload.Value),
-					Evidence: Evidence{
+					Evidence: types.Evidence{
 						Request:    payload.Value,
 						Response:   bodyStr,
 						StatusCode: resp.StatusCode,
