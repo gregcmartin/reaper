@@ -43,17 +43,17 @@ const (
 	SeverityInfo     TestSeverity = "INFO"
 )
 
-// TestWorkflow defines a security test workflow
+// TestWorkflow represents a security test workflow
 type TestWorkflow struct {
-	ID          uint        `json:"id" gorm:"primaryKey"`
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	Type        TestType    `json:"type"`
-	Config      TestConfig  `json:"config"`
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
-	Status      TestStatus  `json:"status"`
-	Results     TestResults `json:"results,omitempty"`
+	ID          uint      `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Type        TestType  `json:"type"`
+	Config      JSON      `json:"config"`
+	Status      JSON      `json:"status"`
+	Results     JSON      `json:"results"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // TestConfig holds configuration for a test workflow
@@ -236,22 +236,22 @@ func (wm *WorkflowManager) executeCrawlTest(workflow *TestWorkflow, settings *mo
 
 	// Create crawl config
 	config := browser.CrawlConfig{
-		Domain:            workflow.Config.Domain,
-		MaxDepth:          workflow.Config.MaxCrawlDepth,
+		Domain:            workflow.Config.(map[string]interface{})["domain"].(string),
+		MaxDepth:          workflow.Config.(map[string]interface{})["max_crawl_depth"].(int),
 		ScreenshotEnabled: settings.ScreenshotEnabled,
 		ScreenshotPath:    settings.ScreenshotPath,
 		FormFillEnabled:   settings.FormFillEnabled,
 		JSInjectionEnabled: settings.JSInjectionEnabled,
-		ExcludePatterns:   workflow.Config.ExcludePatterns,
-		CustomJS:          workflow.Config.CustomJS,
+		ExcludePatterns:   workflow.Config.(map[string]interface{})["exclude_patterns"].([]string),
+		CustomJS:          workflow.Config.(map[string]interface{})["custom_js"].(string),
 	}
 
 	// Add authentication config if present
-	if workflow.Config.AuthConfig != nil {
+	if workflow.Config.(map[string]interface{})["auth_config"] != nil {
 		config.AuthConfig = &browser.AuthConfig{
-			LoginURL:    workflow.Config.AuthConfig.LoginURL,
-			Credentials: workflow.Config.AuthConfig.Credentials,
-			Selectors:  workflow.Config.AuthConfig.Selectors,
+			LoginURL:    workflow.Config.(map[string]interface{})["auth_config"].(map[string]interface{})["login_url"].(string),
+			Credentials: workflow.Config.(map[string]interface{})["auth_config"].(map[string]interface{})["credentials"].(map[string]string),
+			Selectors:  workflow.Config.(map[string]interface{})["auth_config"].(map[string]interface{})["selectors"].(map[string]string),
 		}
 	}
 
